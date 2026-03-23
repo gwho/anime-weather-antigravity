@@ -2,6 +2,9 @@
 
 Learning-oriented prototype for downloading many files concurrently using `asyncio`.
 
+Project folder:
+`/Users/jessejames/Documents/Learn Python/asyncio-prototype`
+
 ## Features
 - Input manifest of file URLs and output filenames
 - Concurrent downloads with configurable max concurrency (default `5`)
@@ -29,9 +32,14 @@ python -m pip install aiohttp aiofiles
 ]
 ```
 
+## Path behavior
+- Relative `manifest` paths are resolved from the script folder.
+- Relative `output` paths in manifest entries are resolved from the script folder.
+- Relative `--report` paths are resolved from the script folder.
+
 ## Run
 ```bash
-python downloader_asyncio.py sample_manifest.json --report download_report.json
+python '/Users/jessejames/Documents/Learn Python/asyncio-prototype/downloader_asyncio.py' sample_manifest.json --report download_report.json
 ```
 
 Useful flags:

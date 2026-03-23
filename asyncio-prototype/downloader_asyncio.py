@@ -21,6 +21,7 @@ import aiohttp
 
 
 CHUNK_SIZE = 64 * 1024
+PROJECT_DIR = Path(__file__).resolve().parent
 
 
 class FileStatus(str, Enum):
@@ -71,11 +72,21 @@ def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def resolve_project_path(raw_path: str) -> Path:
+    candidate = Path(raw_path).expanduser()
+    if candidate.is_absolute():
+        return candidate
+    return PROJECT_DIR / candidate
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Asyncio concurrent file downloader prototype")
     parser.add_argument(
         "manifest",
-        help="Path to JSON file containing [{'url': ..., 'output': ..., 'sha256': optional}]",
+        help=(
+            "Path to JSON file containing [{'url': ..., 'output': ..., 'sha256': optional}]. "
+            "Relative paths resolve from this script's folder."
+        ),
     )
     parser.add_argument(
         "--report",
@@ -110,7 +121,7 @@ def parse_args() -> argparse.Namespace:
 
 
 async def load_manifest(path: str) -> list[DownloadSpec]:
-    manifest_path = Path(path)
+    manifest_path = resolve_project_path(path)
     async with aiofiles.open(manifest_path, "r", encoding="utf-8") as f:
         raw = await f.read()
 
@@ -183,7 +194,7 @@ async def download_once(
     result: DownloadResult,
     semaphore: asyncio.Semaphore,
 ) -> None:
-    target_path = Path(spec.output)
+    target_path = resolve_project_path(spec.output)
     temp_path = target_path.with_suffix(target_path.suffix + ".part")
     target_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -218,12 +229,13 @@ async def verify_checksum_if_needed(spec: DownloadSpec, result: DownloadResult) 
         result.computed_sha256 = None
         return
 
-    computed = await compute_sha256(Path(spec.output))
+    target_path = resolve_project_path(spec.output)
+    computed = await compute_sha256(target_path)
     result.computed_sha256 = computed
     result.checksum_verified = computed.lower() == spec.sha256.lower()
     if not result.checksum_verified:
         # Keep failed verification outcomes explicit by removing bad artifacts.
-        await remove_file_if_exists(Path(spec.output))
+        await remove_file_if_exists(target_path)
         raise PermanentDownloadError(
             f"SHA256 mismatch: expected={spec.sha256.lower()} got={computed.lower()}"
         )
@@ -264,7 +276,8 @@ async def process_spec(
                 return
             except Exception as exc:
                 # Ensure failed attempt does not leave partial artifacts.
-                await remove_file_if_exists(Path(spec.output).with_suffix(Path(spec.output).suffix + ".part"))
+                target_path = resolve_project_path(spec.output)
+                await remove_file_if_exists(target_path.with_suffix(target_path.suffix + ".part"))
 
                 if is_transient_exception(exc) and attempt <= max_retries:
                     # Tradeoff: simple linear backoff keeps logic readable.
@@ -357,7 +370,8 @@ async def run_downloader(
         await asyncio.gather(*workers)
 
     ordered_results = [results[spec.output] for spec in specs]
-    await write_report(report_path, ordered_results)
+    resolved_report_path = resolve_project_path(report_path)
+    await write_report(str(resolved_report_path), ordered_results)
     return ordered_results
 
 
@@ -372,15 +386,16 @@ def print_summary(results: list[DownloadResult], report_path: str) -> None:
 
 async def async_main(args: argparse.Namespace) -> int:
     specs = await load_manifest(args.manifest)
+    resolved_report_path = resolve_project_path(args.report)
     results = await run_downloader(
         specs=specs,
-        report_path=args.report,
+        report_path=str(resolved_report_path),
         max_concurrency=args.max_concurrency,
         worker_count=args.workers,
         retries=args.retries,
         timeout_seconds=args.timeout_seconds,
     )
-    print_summary(results, args.report)
+    print_summary(results, str(resolved_report_path))
     return 0
 
 
