@@ -1,0 +1,15 @@
+[
+  {
+    "url": "https://httpbin.org/bytes/1024",
+    "output": "downloads/sample-1.bin"
+  },
+  {
+    "url": "https://httpbin.org/bytes/2048",
+    "output": "downloads/sample-2.bin"
+  },
+  {
+    "url": "https://httpbin.org/bytes/4096",
+    "output": "downloads/sample-3.bin",
+    "sha256": "replace_with_real_hash_if_you_want_verification"
+  }
+]
