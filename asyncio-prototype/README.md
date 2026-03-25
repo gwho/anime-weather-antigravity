@@ -1,55 +1,55 @@
-# Asyncio Concurrent File Downloader (Prototype)
-
-Learning-oriented prototype for downloading many files concurrently using `asyncio`.
+# Concurrent File Downloader Prototype (Python + Go)
 
 Project folder:
-`/Users/jessejames/Documents/Learn Python/asyncio-prototype`
+`/Users/jessejames/Documents/Learn Python/anime-weather-antigravity/asyncio-prototype`
 
-## Features
-- Input manifest of file URLs and output filenames
-- Concurrent downloads with configurable max concurrency (default `5`)
-- Per-file status transitions: `queued`, `downloading`, `completed`, `failed`
-- Retries transient failures up to 3 times (configurable)
-- Optional SHA256 verification
-- Chunked streaming to avoid loading entire files into memory
-- Final JSON report with metadata and outcomes
+This folder now contains:
+- Python asyncio prototype (`downloader_asyncio.py`)
+- Hardened API contract spec (`api_contract_spec.md`)
+- Contract models (`downloader_contract.py`)
+- Go migration (`downloader_go.go`)
 
-## Install
+## Contract-driven request format
+Use `sample_batch_request.json` as the primary request format for the hardened model:
+- typed job input
+- retry policy
+- partial download policy
+- duplicate filename policy
+
+## Go downloader (migrated design)
+
+### Why this version
+- goroutine worker pool for concurrent downloads
+- context-based cancellation and per-attempt timeout
+- streaming writes to `.part` files to keep memory usage low
+- explicit typed error categories
+- explicit state-machine transitions and history tracking
+- JSON report shape aligned with the hardened contract
+
+### Run
 ```bash
-python -m pip install aiohttp aiofiles
+go run ./downloader_go.go -input sample_batch_request.json -report download_report_go.json -concurrency 5
 ```
 
-## Manifest format
-`sample_manifest.json` shows the expected format:
-
-```json
-[
-  {
-    "url": "https://example.com/file.zip",
-    "output": "downloads/file.zip",
-    "sha256": "optional_hex_digest"
-  }
-]
-```
-
-## Path behavior
-- Relative `manifest` paths are resolved from the script folder.
-- Relative `output` paths in manifest entries are resolved from the script folder.
-- Relative `--report` paths are resolved from the script folder.
-
-## Run
+### Build
 ```bash
-python '/Users/jessejames/Documents/Learn Python/asyncio-prototype/downloader_asyncio.py' sample_manifest.json --report download_report.json
+go build ./...
 ```
 
-Useful flags:
-- `--max-concurrency 5`
-- `--workers 8`
-- `--retries 3`
-- `--timeout-seconds 30`
+## Python prototype (original)
 
-## Design notes
-- Queue + worker tasks keep scheduling simple and explicit for learning.
-- A semaphore limits true in-flight transfers so worker count can be tuned independently.
-- Temporary `.part` files reduce risk of leaving corrupted final outputs.
-- Retry logic uses linear backoff for readability over optimal production behavior.
+### Install
+```bash
+python -m pip install -r requirements.txt
+```
+
+### Run
+```bash
+python downloader_asyncio.py sample_manifest.json --report download_report.json
+```
+
+## Files
+- `downloader_go.go`: Go implementation with goroutines + context + streaming
+- `sample_batch_request.json`: contract-style input for Go flow
+- `api_contract_spec.md`: hardened functional API specification
+- `downloader_contract.py`: Pydantic contract/state machine model
